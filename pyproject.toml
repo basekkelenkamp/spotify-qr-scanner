@@ -1,10 +1,9 @@
 [tool.poetry]
-name = "nextjs-fastapi-lastfm"
+name = "spotify-qr-scanner"
 version = "0.1.0"
 description = ""
 authors = ["Bas <57452503+basekkelenkamp@users.noreply.github.com>"]
 readme = "README.md"
-packages = [{include = "nextjs_fastapi_lastfm"}]
 
 [tool.poetry.dependencies]
 python = "3.12.3"
