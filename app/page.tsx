@@ -32,6 +32,12 @@ export default function Home() {
       >
         Discover, scan, and play vinyl records with your phone.
       </motion.p>
+      <br></br>
+      <motion.p      
+        className="text-lg md:text-3xl max-w-xl text-gray-100"
+        >
+      🅱oming soon
+      </motion.p>
     </main>
   );
 }
