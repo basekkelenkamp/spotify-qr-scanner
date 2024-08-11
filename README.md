@@ -6,13 +6,7 @@
 This is a hybrid Next.js + Python app that uses Next.js as the frontend and FastAPI as the API backend.
 
 ## Development
-Before pushing, run:
-
-```bash
-poetry export -f requirements.txt --output requirements.txt --without-hashes
-```
-
-or install the pre-commit hook (one time only):
+Install the pre-commit hook (one time only):
 ```bash
 poetry run pre-commit install
 ```
