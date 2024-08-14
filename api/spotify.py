@@ -16,59 +16,54 @@ def get_auth_url():
     )
     return auth_manager.get_authorize_url()
 
-def get_spotify_client(auth_code=None):
-    # manual auth_code
-    # auth_code='AQBY6mZ6vSDiprLiBEUH8B1A0FVbfukuK-LAEoaO2s7JbkhsRpRnNrXOoxQ_My4SMaRyN2Cas01exa2XqSm9QNb7R6Uac9zGLU1lGm50nb1W6hRC8-GDTDtP13MV7LE5OBoDR4evPpwEGu6wpr1BtSUmL-vbdnKorDTE3vmpd4EWPRCgemtYm8c_5gSNDlC3d7hjfx3yxuY7kEY7DSv90mVKEsRJtwJXHwze0fAUyNkdecvU7icO701Axfg'
+def get_spotify_client():
 
-    # Initialize the SpotifyOAuth with your credentials and scope
+    # Initialize the SpotifyOAuth with cache_path set to None to disable the .cache file
     auth_manager = SpotifyOAuth(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-        scope="user-read-playback-state user-modify-playback-state"
+        scope="user-read-playback-state user-modify-playback-state",
+        cache_path=None  # Disable the use of the .cache file
     )
 
-    if auth_code:
-        # Exchange the auth_code for an access token and refresh token
-        token_info = auth_manager.get_access_token(auth_code)
+    # Load token info from environment variables
+    token_info = {
+        "access_token": os.getenv("SPOTIFY_ACCESS_TOKEN"),
+        "refresh_token": os.getenv("SPOTIFY_REFRESH_TOKEN"),
+        "expires_at": int(os.getenv("SPOTIFY_TOKEN_EXPIRES_AT", "0"))
+    }
 
-        # Save the token information to environment variables
-        os.environ["SPOTIFY_ACCESS_TOKEN"] = token_info["access_token"]
-        os.environ["SPOTIFY_REFRESH_TOKEN"] = token_info["refresh_token"]
-        os.environ["SPOTIFY_TOKEN_EXPIRES_AT"] = str(token_info["expires_at"])
+    # auth_code = "insert_manual_auth_code"
+    # if auth_code:
+    #     token_info = auth_manager.get_access_token(auth_code)
         
-        print("Token Information (MANUALLY PASTE IN .ENV):")
-        print(token_info)
+    #     print("Token Information (MANUALLY PASTE IN .ENV):")
+    #     print(token_info)
 
+    # if not token_info['refresh_token']:
+    #     authorization_url = auth_manager.get_authorize_url()
+    #     print("authorization_url: ", authorization_url)
+    #     return authorization_url
 
-    else:
-        # Load token info from environment variables
-        token_info = {
-            "access_token": os.getenv("SPOTIFY_ACCESS_TOKEN"),
-            "refresh_token": os.getenv("SPOTIFY_REFRESH_TOKEN"),
-            "expires_at": int(os.getenv("SPOTIFY_TOKEN_EXPIRES_AT", "0"))
-        }
+    # Check if the token is expired and refresh it if necessary
+    if token_info['expires_at'] <= int(time.time()):
+        if not token_info['refresh_token']:
+            raise Exception("Refresh token is missing. Please reauthorize the application.")
 
-        # Check if the token is expired
-        if token_info['expires_at'] <= int(time.time()):
-            if not token_info['refresh_token']:
-                authorization_url = auth_manager.get_authorize_url()
-                print("authorization_url: ", authorization_url)
-                return authorization_url
+        try:
+            # Refresh the token using the refresh token
+            token_info = auth_manager.refresh_access_token(token_info['refresh_token'])
 
-            try:
-                # Refresh the token using the refresh token
-                token_info = auth_manager.refresh_access_token(token_info['refresh_token'])
+            # Update environment variables with the new token info
+            os.environ["SPOTIFY_ACCESS_TOKEN"] = token_info["access_token"]
+            os.environ["SPOTIFY_REFRESH_TOKEN"] = token_info["refresh_token"]
+            os.environ["SPOTIFY_TOKEN_EXPIRES_AT"] = str(token_info["expires_at"])
 
-                # Update environment variables with the new token info
-                os.environ["SPOTIFY_ACCESS_TOKEN"] = token_info["access_token"]
-                os.environ["SPOTIFY_REFRESH_TOKEN"] = token_info["refresh_token"]
-                os.environ["SPOTIFY_TOKEN_EXPIRES_AT"] = str(token_info["expires_at"])
+        except spotipy.oauth2.SpotifyOauthError as e:
+            print(f"Error refreshing access token: {e}")
+            raise Exception("Failed to refresh access token. Please reauthorize the application.")
 
-            except spotipy.oauth2.SpotifyOauthError as e:
-                print(f"Error refreshing access token: {e}")
-                raise Exception("Failed to refresh access token. Please reauthorize the application.")
-    
     return spotipy.Spotify(auth_manager=auth_manager)
 
 
