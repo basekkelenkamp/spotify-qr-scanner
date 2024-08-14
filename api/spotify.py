@@ -3,6 +3,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
 import time
+from dotenv import load_dotenv
 
 SCOPE = 'user-read-playback-state user-modify-playback-state'
 all_vinyl_positions = json.load(open("all_vinyl_positions.json"))
@@ -17,22 +18,18 @@ def get_auth_url():
     return auth_manager.get_authorize_url()
 
 def get_spotify_client():
-
-    # Initialize the SpotifyOAuth with cache_path set to None to disable the .cache file
-    auth_manager = SpotifyOAuth(
-        client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
-        redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-        scope="user-read-playback-state user-modify-playback-state",
-        cache_path=None  # Disable the use of the .cache file
-    )
-
-    # Load token info from environment variables
     token_info = {
         "access_token": os.getenv("SPOTIFY_ACCESS_TOKEN"),
         "refresh_token": os.getenv("SPOTIFY_REFRESH_TOKEN"),
         "expires_at": int(os.getenv("SPOTIFY_TOKEN_EXPIRES_AT", "0"))
     }
+
+    auth_manager = SpotifyOAuth(
+        client_id=os.getenv("SPOTIPY_CLIENT_ID"),
+        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
+        redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
+        scope="user-read-playback-state user-modify-playback-state",
+    )
 
     # auth_code = "insert_manual_auth_code"
     # if auth_code:
@@ -46,8 +43,7 @@ def get_spotify_client():
     #     print("authorization_url: ", authorization_url)
     #     return authorization_url
 
-    # Check if the token is expired and refresh it if necessary
-    if token_info['expires_at'] <= int(time.time()):
+    if not token_info['access_token'] or token_info['expires_at'] <= int(time.time()):
         if not token_info['refresh_token']:
             raise Exception("Refresh token is missing. Please reauthorize the application.")
 
@@ -64,8 +60,10 @@ def get_spotify_client():
             print(f"Error refreshing access token: {e}")
             raise Exception("Failed to refresh access token. Please reauthorize the application.")
 
-    return spotipy.Spotify(auth_manager=auth_manager)
+    # Directly create the Spotify client with the access token
+    sp = spotipy.Spotify(auth=token_info['access_token'])
 
+    return sp
 
 
 def get_active_spotify_devices():
