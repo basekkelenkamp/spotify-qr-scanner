@@ -25,6 +25,9 @@ const nextConfig = {
       },
     ];
   },
+  images: {
+    domains: ['i.scdn.co'], // Allow images from 'i.scdn.co'
+  },
 };
 
 module.exports = nextConfig;

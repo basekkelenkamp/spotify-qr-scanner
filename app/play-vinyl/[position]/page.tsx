@@ -1,18 +1,56 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
+
+interface AlbumInfo {
+  id: string;
+  name: string;
+  artists: string[];
+  release_date: string;
+  total_tracks: number;
+  image: {
+    url: string;
+    height: number;
+    width: number;
+  };
+  total_duration_ms: number;
+  tracks: {
+    name: string;
+    id: string;
+    artists: string[];
+    duration_ms: number;
+  }[];
+}
+
+// Convert milliseconds to a human-readable time format
+function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000).toFixed(0);
+  return `${minutes}:${Number(seconds) < 10 ? "0" : ""}${seconds}`;
+}
 
 export default function PlayVinyl() {
   const params = useParams();
   const position = params.position; // Extracting position from the URL
 
+  const [albumInfo, setAlbumInfo] = useState<AlbumInfo | null>(null);
   const [playSuccess, setPlaySuccess] = useState(false);
   const [shuffleSuccess, setShuffleSuccess] = useState(false);
   const [loading, setLoading] = useState<string | null>(null); // Tracks loading state for either "play" or "shuffle"
   const [error, setError] = useState<string | null>(null); // Tracks error state for either "play" or "shuffle"
+
+  // Fetch album info when the component mounts
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await fetch(`/api/album/${position}`).then((res) => res.json());
+      setAlbumInfo(data);
+      console.log("albumInfo after fetch:", data);
+    };
+    fetchData();
+  }, [position]);
 
   // Reset the button state after 2 seconds with a smooth transition
   const resetButtonState = () => {
@@ -30,12 +68,16 @@ export default function PlayVinyl() {
     try {
       const response = await fetch(`/api/play/${position}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ album_id: albumInfo?.id }),
       });
-      if (response.ok) {
+        if (response.ok) {
         const data = await response.json();
         console.log(data);
         setPlaySuccess(true);
-        } else {
+      } else {
         throw new Error('Failed to play vinyl');
       }
     } catch (error) {
@@ -52,8 +94,12 @@ export default function PlayVinyl() {
     setLoading('shuffle');
     setError(null);
     try {
-      const response = await fetch(`/api/shuffle/${position}`, {
+      const response = await fetch(`/api/play/${position}`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ album_id: albumInfo?.id }),
       });
       if (response.ok) {
         const data = await response.json();
@@ -71,16 +117,31 @@ export default function PlayVinyl() {
     }
   };
 
+  if (!albumInfo) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="container mx-auto p-4 flex flex-col items-center text-center">
+      {/* Album Title and Artist */}
       <motion.h1
-        className="text-4xl font-bold mb-6"
+        className="text-4xl font-bold mb-2"
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        Filler Vinyl {position}
+        {albumInfo.name}
       </motion.h1>
+      <motion.h2
+        className="text-2xl text-gray-500 mb-6"
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        {albumInfo.artists.join(", ")}
+      </motion.h2>
+
+      {/* Album Cover */}
       <motion.div
         className="mb-6 shadow-lg rounded-lg overflow-hidden"
         initial={{ opacity: 0 }}
@@ -88,18 +149,30 @@ export default function PlayVinyl() {
         transition={{ duration: 0.5, delay: 0.3 }}
       >
         <Image
-          src="/placeholder.png" // This is a placeholder white square image
-          alt={`Vinyl cover for position ${position}`}
-          width={300} // Adjust the size as needed
-          height={300}
+          src={albumInfo.image.url}
+          alt={`Vinyl cover for ${albumInfo.name}`}
+          width={albumInfo.image.width}
+          height={albumInfo.image.height}
           className="rounded-lg"
           style={{
             filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))', // Slick shading for a modern look
           }}
         />
       </motion.div>
+
+      {/* Album Total Duration */}
+      <motion.p
+        className="text-xl mb-6 text-gray-400"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        Total Duration: {formatDuration(albumInfo.total_duration_ms)}
+      </motion.p>
+
+      {/* Buttons */}
       <motion.div
-        className="flex space-x-4"
+        className="flex space-x-4 mb-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.5 }}
@@ -230,6 +303,24 @@ export default function PlayVinyl() {
             )}
           </AnimatePresence>
         </button>
+      </motion.div>
+
+      {/* Track List */}
+      <motion.div
+        className="w-full mt-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      >
+        <h3 className="text-2xl font-bold mb-4 text-gray-300">Track List</h3>
+        <ul className="text-lg text-gray-500">
+          {albumInfo.tracks.map((track, index) => (
+            <li key={track.id} className="mb-2">
+              <strong>{index + 1}.</strong> {track.name} -{" "}
+              <span className="text-gray-400">{formatDuration(track.duration_ms)}</span>
+            </li>
+          ))}
+        </ul>
       </motion.div>
     </div>
   );
