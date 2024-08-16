@@ -66,7 +66,7 @@ export default function PlayVinyl() {
     setLoading('play');
     setError(null);
     try {
-      const response = await fetch(`/api/play/${position}`, {
+      const response = await fetch(`/api/play/album/${position}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,12 +94,12 @@ export default function PlayVinyl() {
     setLoading('shuffle');
     setError(null);
     try {
-      const response = await fetch(`/api/play/${position}`, {
+      const response = await fetch(`/api/play/album/${position}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ album_id: albumInfo?.id }),
+        body: JSON.stringify({ album_id: albumInfo?.id, shuffle: true }),
       });
       if (response.ok) {
         const data = await response.json();
@@ -116,6 +116,64 @@ export default function PlayVinyl() {
       resetButtonState(); // Reset button state after 2 seconds
     }
   };
+
+  // API call to queue the album
+  const handleQueue = async () => {
+    setLoading('queue');
+    setError(null);
+    try {
+      const response = await fetch(`/api/queue/album/${position}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ album_id: albumInfo?.id }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log(data);
+        setPlaySuccess(true); // Reusing playSuccess to indicate success
+      } else {
+        throw new Error('Failed to queue album');
+      }
+    } catch (error) {
+      console.error('Error queuing album:', error);
+      setError('queue');
+    } finally {
+      setLoading(null);
+      resetButtonState(); // Reset button state after 2 seconds
+    }
+  };
+
+  // API call to play a specific track
+  const playSpecific = async (track_id: string) => {
+    setLoading('play');
+    setError(null);
+    try {
+      const response = await fetch(`/api/play/track/${position}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ track_id: track_id }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(data);
+        setPlaySuccess(true);
+      } else {
+        throw new Error('Failed to play track');
+      }
+    } catch (error) {
+      console.error('Error playing track:', error);
+      setError('play');
+    } finally {
+      setLoading(null);
+      resetButtonState(); // Reset button state after 2 seconds
+    }
+  };
+  
 
   if (!albumInfo) {
     return <div>Loading...</div>;
@@ -161,16 +219,6 @@ export default function PlayVinyl() {
       </motion.div>
 
       {/* Album Total Duration */}
-      <motion.p
-        className="text-xl mb-6 text-gray-400"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-      >
-        Total Duration: {formatDuration(albumInfo.total_duration_ms)}
-      </motion.p>
-
-      {/* Buttons */}
       <motion.div
         className="flex space-x-4 mb-8"
         initial={{ opacity: 0 }}
@@ -240,6 +288,7 @@ export default function PlayVinyl() {
             )}
           </AnimatePresence>
         </button>
+
         <button
           onClick={handleShuffle}
           disabled={loading === 'shuffle' || shuffleSuccess || error === 'shuffle'}
@@ -303,7 +352,72 @@ export default function PlayVinyl() {
             )}
           </AnimatePresence>
         </button>
+
+        <button
+          onClick={handleQueue}
+          disabled={loading === 'queue' || playSuccess || error === 'queue'}
+          className={`${
+            playSuccess
+              ? 'bg-green-500'
+              : error === 'queue'
+              ? 'bg-red-500'
+              : 'bg-gradient-to-r from-purple-500 to-pink-500'
+          } text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center min-w-[100px] h-[40px]`}
+        >
+          <AnimatePresence>
+            {loading === 'queue' ? (
+              <motion.div
+                className="flex items-center justify-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <svg
+                  className="animate-spin h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  ></path>
+                </svg>
+              </motion.div>
+            ) : playSuccess ? (
+              <motion.div
+                key="checkmark"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                ✔️
+              </motion.div>
+            ) : error === 'queue' ? (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                ❌
+              </motion.div>
+            ) : (
+              <span>Queue</span>
+            )}
+          </AnimatePresence>
+        </button>
       </motion.div>
+
 
       {/* Track List */}
       <motion.div
@@ -312,16 +426,28 @@ export default function PlayVinyl() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.6 }}
       >
-        <h3 className="text-2xl font-bold mb-4 text-gray-300">Track List</h3>
-        <ul className="text-lg text-gray-500">
+        <h3 className="text-2xl font-bold mb-2 text-gray-300">Track List</h3>
+        <ul className="text-lg text-gray-100 divide-y divide-gray-700">
           {albumInfo.tracks.map((track, index) => (
-            <li key={track.id} className="mb-2">
-              <strong>{index + 1}.</strong> {track.name} -{" "}
-              <span className="text-gray-400">{formatDuration(track.duration_ms)}</span>
+            <li 
+              key={track.id} 
+              className="flex items-center justify-between py-4 px-4 rounded-lg transition-all duration-200 hover:bg-gray-800 hover:backdrop-blur-sm cursor-pointer"
+              onClick={() => playSpecific(track.id)}
+
+            >
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-400 font-semibold text-sm">{index + 1}</span>
+                <div>
+                  <p className="text-base font-medium text-left">{track.name}</p>
+                  <p className="text-sm text-gray-500 text-left">{track.artists.join(", ")}</p>
+                </div>
+              </div>
+              <span className="text-sm text-gray-400">{formatDuration(track.duration_ms)}</span>
             </li>
           ))}
         </ul>
       </motion.div>
+
     </div>
   );
 }

@@ -107,6 +107,26 @@ def _filter_album_info(album_raw):
 
 
 def play_album(album_id, device_id, shuffle=False):
+    print("shuffle:", shuffle)
     sp = get_spotify_client()
+    sp.shuffle(state=shuffle)
     sp.start_playback(device_id=device_id, context_uri=f"spotify:album:{album_id}")
+    return
+
+def play_track(track_id, device_id):
+    sp = get_spotify_client()
+    print(f"Playing track: {track_id}")
+    sp.start_playback(device_id=device_id, uris=[f"spotify:track:{track_id}"])
+    return
+
+
+def queue_album(album_id, device_id=None):
+    sp = get_spotify_client()
+    album_tracks = sp.album_tracks(album_id)['items']
+    
+    for track in album_tracks:
+        track_uri = track['uri']
+        print(f"Queuing track: {track['name']} ({track_uri})")
+        sp.add_to_queue(track_uri, device_id=device_id)
+    
     return

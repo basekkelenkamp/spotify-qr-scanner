@@ -2,24 +2,29 @@ from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-from api.spotify import get_active_spotify_devices, get_album_info, play_album
-
+from api.spotify import get_active_spotify_devices, get_album_info, play_album, play_track, queue_album
+from api.spotify import all_vinyl_positions
 load_dotenv()
 app = FastAPI()
 
 class Album(BaseModel):
     album_id: str
+    shuffle: bool = False
+
+class Track(BaseModel):
+    track_id: str
 
 @app.get("/api/vinyls/{position}")
 async def get_vinyl_position(position):
     return {"vinyl_position": position}
 
 
-@app.post("/api/play/{position}")
-async def play(position: int, album: Album, shuffle: bool = False):
-    print(f"play -> pos: {position}, shuffle: {shuffle}")
+@app.post("/api/play/album/{position}")
+async def album_play(position: int, album: Album):
     try:
-        print(f"Album ID: {album.album_id}")
+        pos_id = next((a["spotify_url"] for a in all_vinyl_positions if a["position"] == position), None).split("/")[-1].split("?")[0]
+        if pos_id != album.album_id:
+            raise HTTPException(status_code=400, detail="Album ID does not match the position")
 
         devices = get_active_spotify_devices()
         print("Active Devices:", devices)
@@ -27,15 +32,57 @@ async def play(position: int, album: Album, shuffle: bool = False):
         if not devices:
             raise HTTPException(status_code=404, detail="No active Spotify devices found.")
 
-        device_id = devices[0]['id']
-
-        play_album(album.album_id, device_id, shuffle)
+        play_album(album.album_id, devices[0]['id'], album.shuffle)
         
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
     return {"status": "Playing album on Spotify"}
+
+
+@app.post("/api/queue/album/{position}")
+async def album_queue(position: int, album: Album):
+    try:
+        pos_id = next((a["spotify_url"] for a in all_vinyl_positions if a["position"] == position), None).split("/")[-1].split("?")[0]
+        if pos_id != album.album_id:
+            raise HTTPException(status_code=400, detail="Album ID does not match the position")
+
+        devices = get_active_spotify_devices()
+        print("Active Devices:", devices)
+
+        if not devices:
+            raise HTTPException(status_code=404, detail="No active Spotify devices found.")
+
+        queue_album(album.album_id, devices[0]['id'])
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return {"status": "Queued album on Spotify"}
+
+
+@app.post("/api/play/track/{position}")
+async def track_play(position: int, track: Track):
+    try:
+        album_info = get_album_info(position)
+        if track.track_id not in [t["id"] for t in album_info["tracks"]]:
+            raise HTTPException(status_code=400, detail="Track ID not found in album")
+
+        devices = get_active_spotify_devices()
+        print("Active Devices:", devices)
+
+        if not devices:
+            raise HTTPException(status_code=404, detail="No active Spotify devices found.")
+
+        play_track(track.track_id, devices[0]['id'])
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return {"status": "Playing track on Spotify"}
 
 
 @app.get("/api/album/{position}")
