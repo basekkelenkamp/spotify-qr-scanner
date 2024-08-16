@@ -1,11 +1,17 @@
+import json
+import os
 from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+load_dotenv()
+from api.github import get_github_file_sha, update_github_file
 from api.spotify import get_active_spotify_devices, get_album_info, play_album, play_track, queue_album
 from api.spotify import all_vinyl_positions
-load_dotenv()
+
+
 app = FastAPI()
+SECRET_PASSWORD = os.getenv("SECRET_PASSWORD")
 
 class Album(BaseModel):
     album_id: str
@@ -14,9 +20,29 @@ class Album(BaseModel):
 class Track(BaseModel):
     track_id: str
 
-@app.get("/api/vinyls/{position}")
-async def get_vinyl_position(position):
-    return {"vinyl_position": position}
+class VinylPosition(BaseModel):
+    spotify_url: str
+    position: int
+
+class VinylPositions(BaseModel):
+    positions: list[VinylPosition]
+
+
+class Password(BaseModel):
+    password: str
+
+
+@app.post("/api/admin/login")
+async def login(password: Password):
+    if password.password == SECRET_PASSWORD:
+        return {"status": "success"}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@app.get("/api/vinyls")
+async def get_vinyl_positions():
+    return {"data": all_vinyl_positions}
 
 
 @app.post("/api/play/album/{position}")
@@ -96,6 +122,22 @@ async def get_album(position: int):
     return album_info
 
 
+@app.put("/api/update_vinyl_positions")
+async def update_vinyl_positions(vinyl_positions: VinylPositions):
+    # Convert the positions to JSON
+    json_content = json.dumps([vinyl.model_dump() for vinyl in vinyl_positions.positions], indent=4)
+
+    # Get the current file SHA (to perform the update)
+    sha = get_github_file_sha()
+
+    # Update the file on GitHub
+    update_github_file(
+        json_content,
+        sha,
+        "Update vinyl positions",
+    )
+
+    return {"status": "success", "message": "Vinyl positions updated successfully."}
 
 
 # @app.get("/api/callback/")
