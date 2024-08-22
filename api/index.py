@@ -91,11 +91,9 @@ async def get_vinyl_positions():
     return {"data": all_vinyl_positions}
 
 
-@spotify_enabled_required
 @app.post("/api/play/album/{position}")
+@spotify_enabled_required
 async def album_play(position: int, album: Album):
-    if not settings["spotify_enabled"]:
-        raise HTTPException(status_code=400, detail="Spotify is disabled. Enable it in the settings.")
     try:
         pos_id = next((a["spotify_url"] for a in all_vinyl_positions if a["position"] == position), None).split("/")[-1].split("?")[0]
         if pos_id != album.album_id:
@@ -124,8 +122,8 @@ async def album_play(position: int, album: Album):
     return {"status": "Playing album on Spotify"}
 
 
-@spotify_enabled_required
 @app.post("/api/queue/album/{position}")
+@spotify_enabled_required
 async def album_queue(position: int, album: Album):
     try:
         pos_id = next((a["spotify_url"] for a in all_vinyl_positions if a["position"] == position), None).split("/")[-1].split("?")[0]
@@ -147,8 +145,8 @@ async def album_queue(position: int, album: Album):
     return {"status": "Queued album on Spotify"}
 
 
-@spotify_enabled_required
 @app.post("/api/play/track/{position}")
+@spotify_enabled_required
 async def track_play(position: int, track: Track):
     try:
         album_info = get_album_info(position)
