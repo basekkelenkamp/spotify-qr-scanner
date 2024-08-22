@@ -1,3 +1,4 @@
+from functools import wraps
 import json
 import os
 from fastapi import FastAPI, HTTPException
@@ -12,6 +13,11 @@ from api.spotify import all_vinyl_positions
 
 app = FastAPI()
 SECRET_PASSWORD = os.getenv("SECRET_PASSWORD")
+settings = {
+    "spotify_enabled": os.getenv("SPOTIFY_ENABLED", "true").lower() == "true",
+    "spotify_device": os.getenv("SPOTIFY_DEVICE", ""),  # Default to empty string
+}
+
 
 class Album(BaseModel):
     album_id: str
@@ -31,6 +37,21 @@ class VinylPositions(BaseModel):
 class Password(BaseModel):
     password: str
 
+class EnableSpotify(BaseModel):
+    enable: bool
+
+class UpdateDevice(BaseModel):
+    device: str
+
+
+def spotify_enabled_required(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        if not settings["spotify_enabled"]:
+            raise HTTPException(status_code=400, detail="Spotify is disabled. Enable it in the settings.")
+        return await func(*args, **kwargs)
+    return wrapper
+
 
 @app.post("/api/admin/login")
 async def login(password: Password):
@@ -40,13 +61,41 @@ async def login(password: Password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
+@app.post("/api/admin/enable_spotify")
+async def enable_spotify(enable_spotify: EnableSpotify):
+    print("Enable Spotify:", enable_spotify.enable)
+    if enable_spotify.enable:
+        settings["spotify_enabled"] = True
+    else:
+        settings["spotify_enabled"] = False
+    
+    print("Settings updated:", settings)
+    return {"status": "success", "message": "Spotify toggled"}
+
+
+@app.post("/api/admin/update_device")
+async def update_device(update_device: UpdateDevice):
+    print("Update device:", update_device.device)
+    settings["spotify_device"] = update_device.device
+    print("Settings updated:", settings)
+    return {"status": "success", "message": "Spotify device updated"}
+
+
+@app.get("/api/admin/settings")
+async def get_settings():
+    return {"settings": settings}
+
+
 @app.get("/api/vinyls")
 async def get_vinyl_positions():
     return {"data": all_vinyl_positions}
 
 
+@spotify_enabled_required
 @app.post("/api/play/album/{position}")
 async def album_play(position: int, album: Album):
+    if not settings["spotify_enabled"]:
+        raise HTTPException(status_code=400, detail="Spotify is disabled. Enable it in the settings.")
     try:
         pos_id = next((a["spotify_url"] for a in all_vinyl_positions if a["position"] == position), None).split("/")[-1].split("?")[0]
         if pos_id != album.album_id:
@@ -58,6 +107,14 @@ async def album_play(position: int, album: Album):
         if not devices:
             raise HTTPException(status_code=404, detail="No active Spotify devices found.")
 
+        if not settings["spotify_device"]:
+            play_album(album.album_id, devices[0]['id'], album.shuffle)
+        elif settings["spotify_device"] in [device['name'] for device in devices]:
+            device_id = next((device['id'] for device in devices if device['name'] == settings["spotify_device"]), None)
+            play_album(album.album_id, device_id, album.shuffle)
+        else:
+            raise HTTPException(status_code=404, detail="Specified Spotify device not found.")
+
         play_album(album.album_id, devices[0]['id'], album.shuffle)
         
     except Exception as e:
@@ -67,6 +124,7 @@ async def album_play(position: int, album: Album):
     return {"status": "Playing album on Spotify"}
 
 
+@spotify_enabled_required
 @app.post("/api/queue/album/{position}")
 async def album_queue(position: int, album: Album):
     try:
@@ -89,6 +147,7 @@ async def album_queue(position: int, album: Album):
     return {"status": "Queued album on Spotify"}
 
 
+@spotify_enabled_required
 @app.post("/api/play/track/{position}")
 async def track_play(position: int, track: Track):
     try:
